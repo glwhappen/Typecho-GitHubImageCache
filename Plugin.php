@@ -32,14 +32,26 @@ class GitHubImageCache_Plugin implements Typecho_Plugin_Interface
         $filename = basename($url);
         $localPath = __TYPECHO_ROOT_DIR__ . '/usr/uploads/github_cache/' . $filename;
 
-        if (!file_exists($localPath)) {
-            $imageData = file_get_contents($url);
-            if ($imageData) {
-                file_put_contents($localPath, $imageData);
-            }
+        // 如果本地已经有这张图片，直接返回本地URL
+        if (file_exists($localPath)) {
+            return Typecho_Common::url('usr/uploads/github_cache/' . $filename, Helper::options()->siteUrl);
         }
 
-        $localUrl = Typecho_Common::url('usr/uploads/github_cache/' . $filename, Helper::options()->siteUrl);
-        return $localUrl;
+        // 使用cURL异步获取图片
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 3); // 设置超时时间为3秒
+        $imageData = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        // 如果获取成功，并且HTTP状态码为200，保存图片到本地
+        if ($imageData && $httpCode == 200) {
+            file_put_contents($localPath, $imageData);
+            return Typecho_Common::url('usr/uploads/github_cache/' . $filename, Helper::options()->siteUrl);
+        }
+
+        // 如果获取失败，返回原始URL
+        return $url;
     }
 }
